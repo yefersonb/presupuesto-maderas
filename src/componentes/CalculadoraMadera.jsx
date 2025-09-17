@@ -1,4 +1,4 @@
-// CalculadoraMadera.jsx - con exportación a imagen, aclaración y columna tirantes (solo fecha en encabezado)
+// CalculadoraMadera.jsx - versión compacta con logo, aclaraciones y footer completo (corregido)
 
 import React, { useMemo, useState, useRef } from "react";
 import "./CalculadoraMadera.css";
@@ -7,7 +7,9 @@ import html2canvas from "html2canvas";
 const BF_K = 0.2734;
 const PRECIO_BRUTO = 429;
 const EXTRA_CEPILLADO = 28;
-const PRECIO_TIRANTE = 1200; // Precio por pie si largo > 4.5 m
+const PRECIO_TIRANTE = 1200; 
+const M2_TO_BF = 11; // ✅ 1 m² = 11 pies
+const FACTOR_ANCHO_LARGO = 11; 
 
 function toNum(v, def = 0) {
   const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
@@ -21,12 +23,12 @@ function bfCalc(thicknessIn, widthIn, lengthM) {
   return t * w * L * BF_K;
 }
 
-function MiniDibujo({ wIn, Lm }) {
-  const w = Math.max(0.2, toNum(wIn));
-  const L = Math.max(0.2, toNum(Lm));
+function MiniDibujo({ ancho, largo }) {
+  const w = Math.max(0.1, toNum(ancho));
+  const L = Math.max(0.1, toNum(largo));
 
-  const maxW = 150;
-  const maxH = 50;
+  const maxW = 60;
+  const maxH = 30;
 
   const scaleW = maxW / L;
   const scaleH = maxH / w;
@@ -36,40 +38,31 @@ function MiniDibujo({ wIn, Lm }) {
   const rh = w * scale;
 
   return (
-    <svg viewBox="0 0 180 90" className="mini-dibujo">
+    <svg viewBox="0 0 80 40" className="mini-dibujo">
       <rect
         x="10"
-        y={40 - rh / 2}
+        y={20 - rh / 2}
         width={rw}
         height={rh}
         rx="2"
         fill="#bbf7d0"
         stroke="#166534"
-        strokeWidth="2"
+        strokeWidth="1"
       />
-      <text
-        x={10 + rw / 2}
-        y={20}
-        textAnchor="middle"
-        fontSize="10"
-        fill="#166534"
-      >
-        {wIn}" × {Lm} m
-      </text>
     </svg>
   );
 }
 
 export default function CalculadoraMadera() {
   const [items, setItems] = useState([
-    { id: 1, t: 2, w: 3, L: 2, qty: 1, cepillado: false },
+    { id: 1, tipo: "pieza", t: 2, w: 3, L: 2, qty: 1, m2: 0, anchoM: 0, largoM: 0, cepillado: false },
   ]);
 
   const exportRef = useRef(null);
 
   const guardarComoImagen = () => {
     if (!exportRef.current) return;
-    html2canvas(exportRef.current).then(canvas => {
+    html2canvas(exportRef.current).then((canvas) => {
       const link = document.createElement("a");
       link.download = "presupuesto-maderas.png";
       link.href = canvas.toDataURL("image/png");
@@ -77,39 +70,52 @@ export default function CalculadoraMadera() {
     });
   };
 
-  const addItem = () => {
-    const id = Math.max(0, ...items.map(i => i.id)) + 1;
-    setItems([...items, { id, t: 2, w: 3, L: 2, qty: 1, cepillado: false }]);
+  const addItem = (tipo = "pieza") => {
+    const id = Math.max(0, ...items.map((i) => i.id)) + 1;
+    setItems([...items, { id, tipo, t: 2, w: 3, L: 2, qty: 1, m2: 0, anchoM: 0, largoM: 0, cepillado: false }]);
   };
 
   const duplicateItem = (id) => {
-    const src = items.find(i => i.id === id);
+    const src = items.find((i) => i.id === id);
     if (!src) return;
-    const nid = Math.max(0, ...items.map(i => i.id)) + 1;
+    const nid = Math.max(0, ...items.map((i) => i.id)) + 1;
     setItems([...items, { ...src, id: nid }]);
   };
 
-  const removeItem = (id) => setItems(items.filter(i => i.id !== id));
+  const removeItem = (id) => setItems(items.filter((i) => i.id !== id));
 
   const updateItem = (id, key, value) => {
-    setItems(items.map(i =>
-      i.id === id ? { ...i, [key]: key === "cepillado" ? !!value : value } : i
-    ));
+    setItems(items.map((i) => (i.id === id ? { ...i, [key]: key === "cepillado" ? !!value : value } : i)));
   };
 
   const rows = useMemo(() => {
-    return items.map(i => {
-      const bfUnidad = bfCalc(i.t, i.w, i.L);
-      const bfTotal = bfUnidad * Math.max(0, toNum(i.qty, 0));
-
-      // Tirante largo
-      const esTirante = i.L > 4.5;
-      const precioBase = esTirante
-        ? PRECIO_TIRANTE
-        : PRECIO_BRUTO + (i.cepillado ? EXTRA_CEPILLADO : 0);
-
-      const costo = bfTotal * precioBase;
-      return { ...i, bfUnidad, bfTotal, precioBase, costo, esTirante };
+    return items.map((i) => {
+      if (i.tipo === "pieza") {
+        const bfUnidad = bfCalc(i.t, i.w, i.L);
+        const bfTotal = bfUnidad * Math.max(0, toNum(i.qty, 0));
+        const esTirante = i.L > 4.5;
+        const precioBase = esTirante
+          ? PRECIO_TIRANTE
+          : PRECIO_BRUTO + (i.cepillado ? EXTRA_CEPILLADO : 0);
+        const costo = bfTotal * precioBase;
+        return { ...i, bfUnidad, bfTotal, precioBase, costo, esTirante };
+      } else if (i.tipo === "m2") {
+        const m2 = Math.max(0, toNum(i.m2, 0));
+        const bfUnidad = m2 * M2_TO_BF;
+        const bfTotal = bfUnidad;
+        const precioBase = PRECIO_BRUTO + (i.cepillado ? EXTRA_CEPILLADO : 0);
+        const costo = bfTotal * precioBase;
+        return { ...i, bfUnidad, bfTotal, precioBase, costo };
+      } else {
+        const a = Math.max(0, toNum(i.anchoM, 0));
+        const l = Math.max(0, toNum(i.largoM, 0));
+        const m2 = a * l;
+        const bfUnidad = m2 * FACTOR_ANCHO_LARGO;
+        const bfTotal = bfUnidad;
+        const precioBase = PRECIO_BRUTO + (i.cepillado ? EXTRA_CEPILLADO : 0);
+        const costo = bfTotal * precioBase;
+        return { ...i, bfUnidad, bfTotal, precioBase, costo, m2 };
+      }
     });
   }, [items]);
 
@@ -125,138 +131,108 @@ export default function CalculadoraMadera() {
     <div className="calculadora-container">
       <header className="header">
         <img src="/logo.jpg" alt="Casas Nativa" className="logo" />
-        <h1>Presupuesto de Madera - División Maderas</h1>
-        <p>
-          Calculá pies tablares y costo estimado por pieza. Marcá si querés cepillado.
-        </p>
+        <h1>Presupuesto de Madera</h1>
+        <p>Calculá pies y costo estimado por pieza, m² o ancho/largo.</p>
       </header>
 
-      {/* Contenedor que se exporta como imagen */}
       <div ref={exportRef} className="export-box">
         <div className="export-header">
           <span>Fecha: {fecha}</span>
         </div>
 
-        <div className="tabla-container">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Cantidad</th>
-                <th>Espesor (in)</th>
-                <th>Ancho (in)</th>
-                <th>Largo (m)</th>
-                <th>Cepillado</th>
-                <th>Vista</th>
-                <th>Tipo</th>
-                <th>BF/pieza</th>
-                <th>BF Total</th>
-                <th>Costo</th>
-                <th>Acciones</th>
+        <table className="tabla-compacta">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tipo</th>
+              <th>
+                Dimensiones <br />
+                (Espesor × Ancho × Largo × Cantidad)
+              </th>
+              <th>Cepillado</th>
+              <th>Vista</th>
+              <th>Pies</th>
+              <th>Costo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, idx) => (
+              <tr key={r.id}>
+                <td>{idx + 1}</td>
+                <td>
+                  <select value={r.tipo} onChange={(e) => updateItem(r.id, "tipo", e.target.value)}>
+                    <option value="pieza">Pieza</option>
+                    <option value="m2">m²</option>
+                    <option value="ancho_largo">Ancho/Largo</option>
+                  </select>
+                </td>
+                <td>
+                  {r.tipo === "pieza" && (
+                    <>
+                      <input type="number" value={r.t} onChange={(e) => updateItem(r.id, "t", e.target.value)} style={{width:"40px"}}/>"
+                      × <input type="number" value={r.w} onChange={(e) => updateItem(r.id, "w", e.target.value)} style={{width:"40px"}}/>"
+                      × <input type="number" value={r.L} onChange={(e) => updateItem(r.id, "L", e.target.value)} style={{width:"50px"}}/>m
+                      × <input type="number" value={r.qty} onChange={(e) => updateItem(r.id, "qty", e.target.value)} style={{width:"40px"}}/>u
+                    </>
+                  )}
+                  {r.tipo === "m2" && (
+                    <>
+                      <input type="number" value={r.m2} onChange={(e) => updateItem(r.id, "m2", e.target.value)} style={{width:"60px"}}/> m²
+                    </>
+                  )}
+                  {r.tipo === "ancho_largo" && (
+                    <>
+                      <input type="number" value={r.anchoM} onChange={(e) => updateItem(r.id, "anchoM", e.target.value)} style={{width:"50px"}}/>m
+                      × <input type="number" value={r.largoM} onChange={(e) => updateItem(r.id, "largoM", e.target.value)} style={{width:"50px"}}/>m
+                    </>
+                  )}
+                </td>
+                <td>
+                  <input type="checkbox" checked={r.cepillado} onChange={(e) => updateItem(r.id, "cepillado", e.target.checked)} />
+                </td>
+                <td>
+                  {r.tipo === "pieza" ? <MiniDibujo ancho={r.w} largo={r.L} /> : 
+                   r.tipo === "ancho_largo" ? <MiniDibujo ancho={r.anchoM} largo={r.largoM} /> : "—"}
+                </td>
+                <td>{r.bfTotal.toFixed(2)}</td>
+                <td>${r.costo.toFixed(2)}</td>
+                <td>
+                  <button onClick={() => duplicateItem(r.id)}>⧉</button>
+                  <button onClick={() => removeItem(r.id)}>🗑</button>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, idx) => (
-                <tr key={r.id}>
-                  <td>{idx + 1}</td>
-                  <td>
-                    <input
-                      type="number"
-                      value={r.qty}
-                      onChange={e => updateItem(r.id, "qty", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={r.t}
-                      onChange={e => updateItem(r.id, "t", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={r.w}
-                      onChange={e => updateItem(r.id, "w", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      value={r.L}
-                      onChange={e => updateItem(r.id, "L", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={r.cepillado}
-                      onChange={e =>
-                        updateItem(r.id, "cepillado", e.target.checked)
-                      }
-                    />
-                  </td>
-                  <td>
-                    <MiniDibujo wIn={r.w} Lm={r.L} />
-                  </td>
-                  <td>
-                    {r.esTirante ? "Tirante largo" : "Normal"}
-                  </td>
-                  <td>{r.bfUnidad.toFixed(2)} pies²</td>
-                  <td>{r.bfTotal.toFixed(2)} pies²</td>
-                  <td>${r.costo.toFixed(2)}</td>
-                  <td>
-                    <button onClick={() => duplicateItem(r.id)}>Duplicar</button>
-                    <button onClick={() => removeItem(r.id)}>Borrar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
 
         <div className="totales">
-          <div className="total-box">
-            <span>Total</span>
-            <strong>{totales.bf.toFixed(2)} pies cuadrados</strong>
-          </div>
-          <div className="total-box">
-            <span>Costo total</span>
-            <strong>${totales.costo.toFixed(2)}</strong>
-          </div>
+          <strong>Total: {totales.bf.toFixed(2)} pies | ${totales.costo.toFixed(2)}</strong>
         </div>
 
         <p className="detalle">
-          ⚠️ Tirantes o piezas mayores a 4,5 m → ${PRECIO_TIRANTE} por pie tablar
+          ⚠️ Tirantes > 4,5 m → ${PRECIO_TIRANTE}/pie | Equivalencias:  
+          m² × {M2_TO_BF} (modo m²) | Ancho×Largo × {FACTOR_ANCHO_LARGO} (modo ancho/largo)
         </p>
       </div>
-      {/* Fin exportable */}
 
       <div className="acciones">
-        <button onClick={addItem} className="btn-primary">
-          Agregar fila
-        </button>
-        <button
-          onClick={() =>
-            setItems([{ id: 1, t: 2, w: 3, L: 2, qty: 1, cepillado: false }])
-          }
-          className="btn-secondary"
-        >
-          Reiniciar
-        </button>
-        <button onClick={guardarComoImagen} className="btn-secondary">
-          Guardar como imagen
-        </button>
+        <button onClick={() => addItem("pieza")}>+ Pieza</button>
+        <button onClick={() => addItem("m2")}>+ m²</button>
+        <button onClick={() => addItem("ancho_largo")}>+ Ancho/Largo</button>
+        <button onClick={guardarComoImagen}>Guardar como imagen</button>
       </div>
 
       <footer className="footer">
         <p>
-          Fórmula: bf = espesor × ancho × largo × 0.2734 | Precio base ${PRECIO_BRUTO} + ${EXTRA_CEPILLADO} si es cepillado.
+          Fórmula: pies = Espesor × Ancho × Largo × 0.2734 | Precio base ${PRECIO_BRUTO} + ${EXTRA_CEPILLADO} si es cepillado.
         </p>
         <p>Casas Nativa · División Maderas</p>
         <p>
           WhatsApp:{" "}
-          <a href="https://wa.me/543751567045">+54 9 3751 56-7045</a>
+          <a href="https://wa.me/543751567045" target="_blank" rel="noopener noreferrer">
+            +54 9 3751 56-7045
+          </a>
         </p>
         <p>
           <a href="https://facebook.com/casasnativa">Facebook</a> ·{" "}
