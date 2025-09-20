@@ -1,4 +1,4 @@
-// CalculadoraMadera.jsx - versión final corregida
+// CalculadoraMadera.jsx - versión con MiniDibujo mejorado (escala independiente para ancho y largo)
 import React, { useMemo, useState, useRef } from "react";
 import "./CalculadoraMadera.css";
 import html2canvas from "html2canvas";
@@ -6,16 +6,17 @@ import html2canvas from "html2canvas";
 const BF_K = 0.2734;
 
 // 💰 Precios base
-const PRECIO_TIRANTE_CORTO = 429;     // Precio por pie hasta 4,5 m
-const PRECIO_TIRANTE_LARGO = 1000;    // Precio por pie mayor a 4,5 m
-const EXTRA_CEPILLADO = 160;          // Extra por pie si se elige cepillado
+const PRECIO_TIRANTE_CORTO = 429;   // Precio por pie hasta 4,5 m
+const PRECIO_TIRANTE_LARGO = 1000;  // Precio por pie mayor a 4,5 m
+const EXTRA_CEPILLADO = 160;        // Extra por pie si se elige cepillado
 
 // 🔢 Factores de conversión
-const M2_TO_BF = 11;                   // 1 m² = 11 pies
-const FACTOR_ANCHO_LARGO = 11;         // Factor para cálculo por ancho x largo
+const M2_TO_BF = 11;                  
+const FACTOR_ANCHO_LARGO = 11;        
 
 // --- Funciones auxiliares ---
 function toNum(v, def = 0) {
+  if (v === "" || v === null || v === undefined) return def;
   const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
   return Number.isFinite(n) ? n : def;
 }
@@ -27,25 +28,37 @@ function bfCalc(thicknessIn, widthIn, lengthM) {
   return t * w * L * BF_K;
 }
 
+// --- Dibujito con escalas separadas ---
 function MiniDibujo({ ancho, largo }) {
-  const w = Math.max(0.1, toNum(ancho));
-  const L = Math.max(0.1, toNum(largo));
+  // ancho en pulgadas → cm
+  const wCm = Math.max(0.1, toNum(ancho)) * 2.54;
+  // largo en metros → cm
+  const lCm = Math.max(0.1, toNum(largo)) * 100;
 
-  const maxW = 60;
-  const maxH = 30;
+  // límites máximos del dibujo en px
+  const maxWidthPx = 120;
+  const maxHeightPx = 60;
 
-  const scaleW = maxW / L;
-  const scaleH = maxH / w;
-  const scale = Math.min(scaleW, scaleH);
+  // escalas independientes
+  const scaleX = maxWidthPx / lCm;
+  const scaleY = maxHeightPx / wCm;
 
-  const rw = L * scale;
-  const rh = w * scale;
+  // tomamos la misma escala para ambos para mantener proporción real
+  const scale = Math.min(scaleX, scaleY);
+
+  const rw = lCm * scale; // largo
+  const rh = wCm * scale; // ancho
 
   return (
-    <svg viewBox="0 0 80 40" className="mini-dibujo">
+    <svg
+      width={rw + 20}
+      height={rh + 20}
+      viewBox={`0 0 ${rw + 20} ${rh + 20}`}
+      className="mini-dibujo"
+    >
       <rect
-        x="10"
-        y={20 - rh / 2}
+        x={10}
+        y={10}
         width={rw}
         height={rh}
         rx="2"
@@ -63,13 +76,13 @@ export default function CalculadoraMadera() {
     {
       id: 1,
       tipo: "pieza",
-      t: 2,
-      w: 3,
-      L: 2,
-      qty: 1,
-      m2: 0,
-      anchoM: 0,
-      largoM: 0,
+      t: "2",
+      w: "3",
+      L: "2",
+      qty: "1",
+      m2: "",
+      anchoM: "",
+      largoM: "",
       cepillado: false,
     },
   ]);
@@ -93,13 +106,13 @@ export default function CalculadoraMadera() {
       {
         id,
         tipo,
-        t: 2,
-        w: 3,
-        L: 2,
-        qty: 1,
-        m2: 0,
-        anchoM: 0,
-        largoM: 0,
+        t: "2",
+        w: "3",
+        L: "2",
+        qty: "1",
+        m2: "",
+        anchoM: "",
+        largoM: "",
         cepillado: false,
       },
     ]);
@@ -114,15 +127,13 @@ export default function CalculadoraMadera() {
 
   const removeItem = (id) => setItems(items.filter((i) => i.id !== id));
 
-  // Convertir automáticamente a número los campos numéricos
   const updateItem = (id, key, value) => {
-    const numericKeys = new Set(["t", "w", "L", "qty", "m2", "anchoM", "largoM"]);
     setItems(
       items.map((i) =>
         i.id === id
           ? {
               ...i,
-              [key]: key === "cepillado" ? !!value : numericKeys.has(key) ? toNum(value) : value,
+              [key]: key === "cepillado" ? !!value : value,
             }
           : i
       )
@@ -135,46 +146,31 @@ export default function CalculadoraMadera() {
       if (i.tipo === "pieza") {
         const bfUnidad = bfCalc(i.t, i.w, i.L);
         const bfTotal = bfUnidad * Math.max(0, toNum(i.qty, 0));
-
-        // ✅ Asegurarse de comparar con número
         const Lnum = toNum(i.L, 0);
         const esLargo = Lnum > 4.5;
-
-        // Precio por pie según largo
         const precioPorPie = esLargo ? PRECIO_TIRANTE_LARGO : PRECIO_TIRANTE_CORTO;
-
-        // Fórmula final
         const costo =
           bfTotal * precioPorPie +
           (i.cepillado ? bfTotal * EXTRA_CEPILLADO : 0);
-
         return { ...i, bfUnidad, bfTotal, costo, esLargo };
       }
-
-      // --- Caso: m² directo ---
       if (i.tipo === "m2") {
         const m2 = Math.max(0, toNum(i.m2, 0));
         const bfUnidad = m2 * M2_TO_BF;
         const bfTotal = bfUnidad;
-
         const costo =
           bfTotal * PRECIO_TIRANTE_CORTO +
           (i.cepillado ? bfTotal * EXTRA_CEPILLADO : 0);
-
         return { ...i, bfUnidad, bfTotal, costo };
       }
-
-      // --- Caso: Ancho x Largo ---
       const a = Math.max(0, toNum(i.anchoM, 0));
       const l = Math.max(0, toNum(i.largoM, 0));
       const m2 = a * l;
       const bfUnidad = m2 * FACTOR_ANCHO_LARGO;
       const bfTotal = bfUnidad;
-
       const costo =
         bfTotal * PRECIO_TIRANTE_CORTO +
         (i.cepillado ? bfTotal * EXTRA_CEPILLADO : 0);
-
       return { ...i, bfUnidad, bfTotal, costo, m2 };
     });
   }, [items]);
@@ -207,8 +203,7 @@ export default function CalculadoraMadera() {
               <th>#</th>
               <th>Tipo</th>
               <th>
-                Dimensiones <br />
-                (Espesor × Ancho × Largo × Cantidad)
+                Dimensiones <br /> (Espesor × Ancho × Largo × Cantidad)
               </th>
               <th>Cepillado</th>
               <th>Vista</th>
@@ -236,33 +231,39 @@ export default function CalculadoraMadera() {
                     <>
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.t}
                         onChange={(e) => updateItem(r.id, "t", e.target.value)}
                         style={{ width: "40px" }}
-                      />
-                      "
-                      ×
+                      />{" "}
+                      " ×
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.w}
                         onChange={(e) => updateItem(r.id, "w", e.target.value)}
                         style={{ width: "40px" }}
-                      />
-                      "
-                      ×
+                      />{" "}
+                      " ×
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.L}
                         onChange={(e) => updateItem(r.id, "L", e.target.value)}
                         style={{ width: "50px" }}
-                      />
+                      />{" "}
                       m ×
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.qty}
                         onChange={(e) => updateItem(r.id, "qty", e.target.value)}
                         style={{ width: "40px" }}
-                      />
+                      />{" "}
                       u
                     </>
                   )}
@@ -270,6 +271,8 @@ export default function CalculadoraMadera() {
                     <>
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.m2}
                         onChange={(e) => updateItem(r.id, "m2", e.target.value)}
                         style={{ width: "60px" }}
@@ -281,21 +284,25 @@ export default function CalculadoraMadera() {
                     <>
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.anchoM}
                         onChange={(e) =>
                           updateItem(r.id, "anchoM", e.target.value)
                         }
                         style={{ width: "50px" }}
-                      />
+                      />{" "}
                       m ×
                       <input
                         type="number"
+                        step="any"
+                        inputMode="decimal"
                         value={r.largoM}
                         onChange={(e) =>
                           updateItem(r.id, "largoM", e.target.value)
                         }
                         style={{ width: "50px" }}
-                      />
+                      />{" "}
                       m
                     </>
                   )}
@@ -337,8 +344,8 @@ export default function CalculadoraMadera() {
 
         <p className="detalle">
           ⚠️ Tirantes hasta 4,5 m → ${PRECIO_TIRANTE_CORTO}/pie | Tirantes
-          mayores a 4,5 m → ${PRECIO_TIRANTE_LARGO}/pie | Extra cepillado: $
-          {EXTRA_CEPILLADO}/pie | Equivalencias: m² × {M2_TO_BF} (modo m²) | 
+          mayores a 4,5 m → ${PRECIO_TIRANTE_LARGO}/pie | Extra cepillado:{" "}
+          {EXTRA_CEPILLADO}/pie | Equivalencias: m² × {M2_TO_BF} (modo m²) |
           Ancho×Largo × {FACTOR_ANCHO_LARGO} (modo ancho/largo)
         </p>
       </div>
@@ -352,8 +359,8 @@ export default function CalculadoraMadera() {
 
       <footer className="footer">
         <p>
-          Fórmula: pies = Espesor × Ancho × Largo × 0.2734 | Precios base: $
-          {PRECIO_TIRANTE_CORTO} (corto) y ${PRECIO_TIRANTE_LARGO} (largo) + $
+          Fórmula: pies = Espesor × Ancho × Largo × 0.2734 | Precios base:{" "}
+          {PRECIO_TIRANTE_CORTO} (corto) y {PRECIO_TIRANTE_LARGO} (largo) +{" "}
           {EXTRA_CEPILLADO} si es cepillado.
         </p>
         <p>Casas Nativa · División Maderas</p>
@@ -373,7 +380,9 @@ export default function CalculadoraMadera() {
         </p>
         <p>
           Otros productos:{" "}
-          <a href="https://www.nativahomedeco.com.ar">nativahomedeco.com.ar</a>{" "}
+          <a href="https://www.nativahomedeco.com.ar">
+            nativahomedeco.com.ar
+          </a>{" "}
           · <a href="https://instagram.com/nativahomedeco">@nativahomedeco</a>
         </p>
       </footer>
