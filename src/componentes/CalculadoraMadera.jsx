@@ -1,4 +1,4 @@
-// CalculadoraMadera.jsx - versión sin gráfico ni columna de filas
+// CalculadoraMadera.jsx - versión con tirantes 3 rangos y machimbre
 import React, { useMemo, useState, useRef } from "react";
 import "./CalculadoraMadera.css";
 import html2canvas from "html2canvas";
@@ -6,13 +6,18 @@ import html2canvas from "html2canvas";
 const BF_K = 0.2734;
 
 // 💰 Precios base
-const PRECIO_TIRANTE_CORTO = 429;   // Precio por pie hasta 4,5 m
-const PRECIO_TIRANTE_LARGO = 1000;  // Precio por pie mayor a 4,5 m
-const EXTRA_CEPILLADO = 160;        // Extra por pie si se elige cepillado
+const PRECIO_TIRANTE_CORTO = 429;   // Hasta 3.5 m
+const PRECIO_TIRANTE_MEDIO = 536;   // >3.5 m hasta 4.5 m (429 + 25%)
+const PRECIO_TIRANTE_LARGO = 1000;  // Más de 4.5 m
+const EXTRA_CEPILLADO = 160;        // Extra por pie
+
+// 💰 Precios machimbre
+const PRECIO_MACHIMBRE_PRIMERA = 4000; // por m²
+const PRECIO_MACHIMBRE_SEGUNDA = 3000; // por m²
 
 // 🔢 Factores de conversión
-const M2_TO_BF = 11;                  
-const FACTOR_ANCHO_LARGO = 11;        
+const M2_TO_BF = 11;
+const FACTOR_ANCHO_LARGO = 11;
 
 // --- Funciones auxiliares ---
 function toNum(v, def = 0) {
@@ -42,6 +47,7 @@ export default function CalculadoraMadera() {
       anchoM: "",
       largoM: "",
       cepillado: false,
+      calidad: "primera", // para machimbre
     },
   ]);
 
@@ -72,6 +78,7 @@ export default function CalculadoraMadera() {
         anchoM: "",
         largoM: "",
         cepillado: false,
+        calidad: "primera",
       },
     ]);
   };
@@ -105,13 +112,28 @@ export default function CalculadoraMadera() {
         const bfUnidad = bfCalc(i.t, i.w, i.L);
         const bfTotal = bfUnidad * Math.max(0, toNum(i.qty, 0));
         const Lnum = toNum(i.L, 0);
-        const esLargo = Lnum > 4.5;
-        const precioPorPie = esLargo ? PRECIO_TIRANTE_LARGO : PRECIO_TIRANTE_CORTO;
+
+        let precioPorPie = PRECIO_TIRANTE_CORTO;
+        if (Lnum > 3.5 && Lnum <= 4.5) precioPorPie = PRECIO_TIRANTE_MEDIO;
+        if (Lnum > 4.5) precioPorPie = PRECIO_TIRANTE_LARGO;
+
         const costo =
           bfTotal * precioPorPie +
           (i.cepillado ? bfTotal * EXTRA_CEPILLADO : 0);
-        return { ...i, bfUnidad, bfTotal, costo, esLargo };
+
+        return { ...i, bfUnidad, bfTotal, costo };
       }
+
+      if (i.tipo === "machimbre") {
+        const m2 = Math.max(0, toNum(i.m2, 0));
+        const precioUnitario =
+          i.calidad === "primera"
+            ? PRECIO_MACHIMBRE_PRIMERA
+            : PRECIO_MACHIMBRE_SEGUNDA;
+        const costo = m2 * precioUnitario;
+        return { ...i, bfUnidad: 0, bfTotal: m2, costo };
+      }
+
       if (i.tipo === "m2") {
         const m2 = Math.max(0, toNum(i.m2, 0));
         const bfUnidad = m2 * M2_TO_BF;
@@ -121,6 +143,7 @@ export default function CalculadoraMadera() {
           (i.cepillado ? bfTotal * EXTRA_CEPILLADO : 0);
         return { ...i, bfUnidad, bfTotal, costo };
       }
+
       const a = Math.max(0, toNum(i.anchoM, 0));
       const l = Math.max(0, toNum(i.largoM, 0));
       const m2 = a * l;
@@ -147,7 +170,7 @@ export default function CalculadoraMadera() {
       <header className="header">
         <img src="/logo.jpg" alt="Casas Nativa" className="logo" />
         <h1>Presupuesto de Madera</h1>
-        <p>Calculá pies y costo estimado por pieza, m² o ancho/largo.</p>
+        <p>Calculá pies y costo estimado por pieza, machimbre, m² o ancho/largo.</p>
       </header>
 
       <div ref={exportRef} className="export-box">
@@ -159,11 +182,9 @@ export default function CalculadoraMadera() {
           <thead>
             <tr>
               <th>Tipo</th>
-              <th>
-                Dimensiones <br /> (Esp.× Ancho × Largo × Cant)
-              </th>
-              <th>Cepillado</th>
-              <th>Pies</th>
+              <th>Dimensiones / m²</th>
+              <th>Cepillado / Calidad</th>
+              <th>Pies/m²</th>
               <th>Costo</th>
               <th>Acciones</th>
             </tr>
@@ -179,6 +200,7 @@ export default function CalculadoraMadera() {
                     <option value="pieza">Pieza</option>
                     <option value="m2">m²</option>
                     <option value="ancho_largo">Ancho/Largo</option>
+                    <option value="machimbre">Machimbre</option>
                   </select>
                 </td>
                 <td>
@@ -261,15 +283,42 @@ export default function CalculadoraMadera() {
                       m
                     </>
                   )}
+                  {r.tipo === "machimbre" && (
+                    <>
+                      <select
+                        value={r.calidad}
+                        onChange={(e) =>
+                          updateItem(r.id, "calidad", e.target.value)
+                        }
+                      >
+                        <option value="primera">Primera</option>
+                        <option value="segunda">Segunda</option>
+                      </select>{" "}
+                      ×
+                      <input
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        value={r.m2}
+                        onChange={(e) => updateItem(r.id, "m2", e.target.value)}
+                        className="m2"
+                      />{" "}
+                      m²
+                    </>
+                  )}
                 </td>
                 <td>
-                  <input
-                    type="checkbox"
-                    checked={r.cepillado}
-                    onChange={(e) =>
-                      updateItem(r.id, "cepillado", e.target.checked)
-                    }
-                  />
+                  {r.tipo === "machimbre" ? (
+                    r.calidad
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={r.cepillado}
+                      onChange={(e) =>
+                        updateItem(r.id, "cepillado", e.target.checked)
+                      }
+                    />
+                  )}
                 </td>
                 <td>{r.bfTotal.toFixed(2)}</td>
                 <td>${r.costo.toFixed(2)}</td>
@@ -284,20 +333,23 @@ export default function CalculadoraMadera() {
 
         <div className="totales">
           <strong>
-            Total: {totales.bf.toFixed(2)} pies | ${totales.costo.toFixed(2)}
+            Total: {totales.bf.toFixed(2)} pies/m² | ${totales.costo.toFixed(2)}
           </strong>
         </div>
 
         <p className="detalle">
-          ⚠️ Tirantes hasta 4,5 m → ${PRECIO_TIRANTE_CORTO}/pie | Tirantes
-          mayores a 4,5 m → ${PRECIO_TIRANTE_LARGO}/pie | Extra cepillado:{" "}
-          {EXTRA_CEPILLADO}/pie | Equivalencias: m² × {M2_TO_BF} (modo m²) |
-          Ancho×Largo × {FACTOR_ANCHO_LARGO} (modo ancho/largo)
+          ⚠️ Tirantes hasta 3.5 m → ${PRECIO_TIRANTE_CORTO}/pie | 3.5–4.5 m →
+          ${PRECIO_TIRANTE_MEDIO}/pie | más de 4.5 m →
+          ${PRECIO_TIRANTE_LARGO}/pie | Extra cepillado: {EXTRA_CEPILLADO}/pie
+          <br />
+          Machimbre 1/2×4 Primera: ${PRECIO_MACHIMBRE_PRIMERA}/m² | Segunda:
+          ${PRECIO_MACHIMBRE_SEGUNDA}/m²
         </p>
       </div>
 
       <div className="acciones">
         <button onClick={() => addItem("pieza")}>+ Pieza</button>
+        <button onClick={() => addItem("machimbre")}>+ Machimbre</button>
         <button onClick={() => addItem("m2")}>+ m²</button>
         <button onClick={() => addItem("ancho_largo")}>+ Ancho/Largo</button>
         <button onClick={guardarComoImagen}>Guardar como imagen</button>
@@ -305,9 +357,9 @@ export default function CalculadoraMadera() {
 
       <footer className="footer">
         <p>
-          Fórmula: pies = Espesor × Ancho × Largo × 0.2734 | Precios base:{" "}
-          {PRECIO_TIRANTE_CORTO} (corto) y {PRECIO_TIRANTE_LARGO} (largo) +{" "}
-          {EXTRA_CEPILLADO} si es cepillado.
+          Fórmula: pies = Espesor × Ancho × Largo × 0.2734 | Precios base:
+          {PRECIO_TIRANTE_CORTO} (corto), {PRECIO_TIRANTE_MEDIO} (medio) y{" "}
+          {PRECIO_TIRANTE_LARGO} (largo) + {EXTRA_CEPILLADO} si es cepillado.
         </p>
         <p>Casas Nativa · División Maderas</p>
         <p>
