@@ -1,4 +1,4 @@
-/* CalculadoraMadera.css - Versión compacta y en recuadro */
+/* CalculadoraMadera.css - versión compacta con inputs ajustados */
 
 /* Reset básico */
 body {
@@ -9,15 +9,15 @@ body {
   color: #333;
 }
 
-/* Contenedor principal en recuadro */
+/* Contenedor principal */
 .calculadora-container {
-  max-width: 900px;           /* más angosto que antes */
-  margin: 30px auto;          /* centrado */
+  max-width: 900px;
+  margin: 30px auto;
   padding: 20px;
-  background: #fff;           /* recuadro blanco */
-  border: 1px solid #ddd;     /* borde suave */
-  border-radius: 10px;        /* bordes redondeados */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* sombra ligera */
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 /* Encabezado */
@@ -37,7 +37,7 @@ h1 {
   margin-bottom: 5px;
 }
 
-/* Tabla compacta */
+/* Tabla */
 .tabla-container table,
 .tabla-compacta {
   width: 100%;
@@ -64,14 +64,23 @@ h1 {
   font-size: 12px;
 }
 
-/* Inputs más chicos */
+/* Inputs base */
 input[type="number"] {
-  width: 50px;
+  text-align: center;
   padding: 2px 4px;
   font-size: 13px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
+
+/* Inputs ajustados por cantidad de dígitos */
+input.espesor { width: 2.0em; }   /* 1 dígito */
+input.ancho   { width: 2.0em; }   /* hasta 2 dígitos */
+input.largo   { width: 2.0em; }   /* hasta 3 dígitos */
+input.cantidad { width: 1.5em; }  /* configurable */
+input.m2      { width: 5em; }
+input.anchoM  { width: 4em; }
+input.largoM  { width: 4em; }
 
 input[type="checkbox"] {
   transform: scale(1.1);
@@ -157,10 +166,9 @@ button:hover {
   text-decoration: underline;
 }
 
-/* Dibujo chico */
+/* Mini dibujo */
 .mini-dibujo {
-  width: 60px;
-  max-width: 80px;
+  display: inline-block;
 }
 
 /* Texto aclaratorio */
@@ -170,4 +178,21 @@ button:hover {
   color: #E67E22;
   font-weight: bold;
   margin-top: 8px;
+}
+
+/* --- Ajustes para móvil --- */
+@media (max-width: 768px) {
+  .mini-dibujo {
+    display: none; /* ocultar dibujo en celulares */
+  }
+
+  .tabla-container table,
+  .tabla-compacta {
+    font-size: 12px;
+  }
+
+  input[type="number"] {
+    font-size: 12px;
+    padding: 2px;
+  }
 }

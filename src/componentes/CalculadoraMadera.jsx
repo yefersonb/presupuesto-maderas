@@ -1,4 +1,4 @@
-// CalculadoraMadera.jsx - versión con MiniDibujo mejorado (escala independiente para ancho y largo)
+// CalculadoraMadera.jsx - versión sin gráfico ni columna de filas
 import React, { useMemo, useState, useRef } from "react";
 import "./CalculadoraMadera.css";
 import html2canvas from "html2canvas";
@@ -26,48 +26,6 @@ function bfCalc(thicknessIn, widthIn, lengthM) {
   const w = Math.max(0, toNum(widthIn));
   const L = Math.max(0, toNum(lengthM));
   return t * w * L * BF_K;
-}
-
-// --- Dibujito con escalas separadas ---
-function MiniDibujo({ ancho, largo }) {
-  // ancho en pulgadas → cm
-  const wCm = Math.max(0.1, toNum(ancho)) * 2.54;
-  // largo en metros → cm
-  const lCm = Math.max(0.1, toNum(largo)) * 100;
-
-  // límites máximos del dibujo en px
-  const maxWidthPx = 120;
-  const maxHeightPx = 60;
-
-  // escalas independientes
-  const scaleX = maxWidthPx / lCm;
-  const scaleY = maxHeightPx / wCm;
-
-  // tomamos la misma escala para ambos para mantener proporción real
-  const scale = Math.min(scaleX, scaleY);
-
-  const rw = lCm * scale; // largo
-  const rh = wCm * scale; // ancho
-
-  return (
-    <svg
-      width={rw + 20}
-      height={rh + 20}
-      viewBox={`0 0 ${rw + 20} ${rh + 20}`}
-      className="mini-dibujo"
-    >
-      <rect
-        x={10}
-        y={10}
-        width={rw}
-        height={rh}
-        rx="2"
-        fill="#bbf7d0"
-        stroke="#166534"
-        strokeWidth="1"
-      />
-    </svg>
-  );
 }
 
 // --- Componente principal ---
@@ -200,22 +158,19 @@ export default function CalculadoraMadera() {
         <table className="tabla-compacta">
           <thead>
             <tr>
-              <th>#</th>
               <th>Tipo</th>
               <th>
-                Dimensiones <br /> (Espesor × Ancho × Largo × Cantidad)
+                Dimensiones <br /> (Esp.× Ancho × Largo × Cant)
               </th>
               <th>Cepillado</th>
-              <th>Vista</th>
               <th>Pies</th>
               <th>Costo</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, idx) => (
+            {rows.map((r) => (
               <tr key={r.id}>
-                <td>{idx + 1}</td>
                 <td>
                   <select
                     value={r.tipo}
@@ -235,25 +190,25 @@ export default function CalculadoraMadera() {
                         inputMode="decimal"
                         value={r.t}
                         onChange={(e) => updateItem(r.id, "t", e.target.value)}
-                        style={{ width: "40px" }}
+                        className="espesor"
                       />{" "}
-                      " ×
+                      ×
                       <input
                         type="number"
                         step="any"
                         inputMode="decimal"
                         value={r.w}
                         onChange={(e) => updateItem(r.id, "w", e.target.value)}
-                        style={{ width: "40px" }}
+                        className="ancho"
                       />{" "}
-                      " ×
+                      ×
                       <input
                         type="number"
                         step="any"
                         inputMode="decimal"
                         value={r.L}
                         onChange={(e) => updateItem(r.id, "L", e.target.value)}
-                        style={{ width: "50px" }}
+                        className="largo"
                       />{" "}
                       m ×
                       <input
@@ -262,7 +217,7 @@ export default function CalculadoraMadera() {
                         inputMode="decimal"
                         value={r.qty}
                         onChange={(e) => updateItem(r.id, "qty", e.target.value)}
-                        style={{ width: "40px" }}
+                        className="cantidad"
                       />{" "}
                       u
                     </>
@@ -275,7 +230,7 @@ export default function CalculadoraMadera() {
                         inputMode="decimal"
                         value={r.m2}
                         onChange={(e) => updateItem(r.id, "m2", e.target.value)}
-                        style={{ width: "60px" }}
+                        className="m2"
                       />{" "}
                       m²
                     </>
@@ -290,7 +245,7 @@ export default function CalculadoraMadera() {
                         onChange={(e) =>
                           updateItem(r.id, "anchoM", e.target.value)
                         }
-                        style={{ width: "50px" }}
+                        className="anchoM"
                       />{" "}
                       m ×
                       <input
@@ -301,7 +256,7 @@ export default function CalculadoraMadera() {
                         onChange={(e) =>
                           updateItem(r.id, "largoM", e.target.value)
                         }
-                        style={{ width: "50px" }}
+                        className="largoM"
                       />{" "}
                       m
                     </>
@@ -315,15 +270,6 @@ export default function CalculadoraMadera() {
                       updateItem(r.id, "cepillado", e.target.checked)
                     }
                   />
-                </td>
-                <td>
-                  {r.tipo === "pieza" ? (
-                    <MiniDibujo ancho={r.w} largo={r.L} />
-                  ) : r.tipo === "ancho_largo" ? (
-                    <MiniDibujo ancho={r.anchoM} largo={r.largoM} />
-                  ) : (
-                    "—"
-                  )}
                 </td>
                 <td>{r.bfTotal.toFixed(2)}</td>
                 <td>${r.costo.toFixed(2)}</td>
